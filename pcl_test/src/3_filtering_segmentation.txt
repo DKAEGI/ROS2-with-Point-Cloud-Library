@@ -1,0 +1,46 @@
+    // Notes for a single cylinder segmentation
+
+    // *** CYLINDER SEGMENTATION ***
+    // Estimate point normals
+    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+    normal_estimator.setInputCloud(passthrough_cloud);
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+    normal_estimator.setSearchMethod(tree);
+    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
+    normal_estimator.setKSearch(30);
+    normal_estimator.compute(*cloud_normals);
+
+    // Create the segmentation object for cylinder segmentation and set up
+    pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> cylinder_segmentor;
+    cylinder_segmentor.setOptimizeCoefficients(true);
+    cylinder_segmentor.setModelType(pcl::SACMODEL_CYLINDER);
+    cylinder_segmentor.setMethodType(pcl::SAC_RANSAC);
+    cylinder_segmentor.setNormalDistanceWeight(0.5); // Adjust according to the density of your point cloud
+    cylinder_segmentor.setMaxIterations(10000);
+    cylinder_segmentor.setDistanceThreshold(0.06); // Adjust for accuracy
+    cylinder_segmentor.setRadiusLimits(0.1, 0.4); // Set the radius limits of the cylinder
+    cylinder_segmentor.setInputCloud(passthrough_cloud);
+    cylinder_segmentor.setInputNormals(cloud_normals);
+
+    // Obtain the cylinder inliers and coefficients
+    pcl::ModelCoefficients::Ptr coefficients_cylinder(new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers_cylinder(new pcl::PointIndices);
+    cylinder_segmentor.segment(*inliers_cylinder, *coefficients_cylinder);
+
+    // Write the cylinder inliers to disk for later inspection
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cylinder(new pcl::PointCloud<pcl::PointXYZ>());
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(passthrough_cloud);
+    extract.setIndices(inliers_cylinder);
+    extract.setNegative(false);
+    extract.filter(*cloud_cylinder); 
+    cloud_saver("single_cylinder.pcd", path, cloud_cylinder); // Save the cloud_cylinder
+
+    // Now, extract the rest of the cloud excluding the cylinder
+    pcl::PointCloud<pcl::PointXYZ>::Ptr remaining_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+    extract.setNegative(true); // Extract everything else but the cylinder points
+    extract.filter(*remaining_cloud);
+    cloud_saver("remaining_cloud.pcd", path, remaining_cloud); // Save the remaining cloud data
+
+    std::cout << "Number of points of single cylinder: " << cloud_cylinder->size() << std::endl;
+    std::cout << "Number of points of remaining cloud: " << remaining_cloud->size() << std::endl; // Print the number of points in the remaining point cloud

@@ -1,0 +1,1 @@
+To visualize kitti data launch first bring_rviz.launch.py and then process_kitti.launch.py
